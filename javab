@@ -1,0 +1,584 @@
+#!/bin/bash
+
+# (public)
+function usage {
+    cat<<EOF>&2
+
+Synopsis
+
+ $0 [directive]
+
+Directives
+
+  test-self           Perform the installation test.
+  test-env            Perform the environment test.
+  test-layout         Perform the file layout test.
+  read-conf <n>       Read a named variable from 'javab.txt'.
+
+  file-rt              Print the location of 'rt.jar' bootclasspath.
+  file-tools           Print the location of 'tools.jar'.
+
+  dir-lib             Print one or more 'lib' directories, configured and './lib'.
+  dir-src             Print the location of the 'src' directory.
+  dir-res             Print the location of the 'res' directory.
+
+  path-lib            Print the classpath derived from 'dir-lib'.
+  path-class          Print the classpath for 'javac'.
+
+  list-sources        Print listing of JPL files found under 'src'.
+
+  init                Write configuration file.
+  target              Print jar file name from configured name and version.
+  compile             Compile JPL files from 'src' to 'bin'.
+  package             Package object binaries from 'bin' to jar.
+  build               Perform compile and package.
+  clean               Drop 'jar' file and 'bin' directory.
+
+Configuration
+
+  The file 'javab.txt' located in an application root directory has
+  the general syntactic form of a java properties file, "name=value"
+  and "#" line comments.  
+
+  The following is an example of a configuration file.
+
+    # 
+    # Configuration parameters recognized by 'javab'.
+    # See https://github.com/syntelos/sh-javab
+    #
+    lib_dir=../lib
+
+
+  The following names are employed within the script.
+
+    name                   Project name, see 'target'.
+
+    version                Project version, see 'target'.
+
+    src_dir                The location of the root of a JPL source code 
+                           namespace, e.g. "src" in the directory path
+                           "src/com/example/application".
+
+    res_dir                The location of the root of the resource file 
+                           namespace, e.g. "res" in the directory path
+                           "res/layout".
+
+    lib_dir                The location of the root of a java library  
+                           namespace, e.g. "lib" in the directory path
+                           "lib/example-dep-library.jar".
+
+    classpath              A library path ':' for javac to employ.
+
+    extra_classpath        A library path ':' to append to the contents 
+                           of <lib>.
+
+Caveats
+
+    This script (creates and) destroys the directory 'bin'.
+
+EOF
+    exit 1
+}
+##
+function line_conf {
+    n="${1}"
+    if [ -n "${n}" ]&&[ -f javab.txt ]
+    then
+	if lno=$(egrep -n "^${n}=" javab.txt | sed 's/:.*//')&&[ -n "${lno}" ]&&[ 0 -lt ${lno} ]
+	then
+	    echo ${lno}
+
+	    return 0
+	else
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function write_conf {
+    n="${1}"
+    v="${2}"
+    if init_conf && [ -n "${n}" -a -n "${v}" ]
+    then
+
+	if lno=$(line_conf ${n})
+	then
+	    if cat javab.txt | sed -e "${lno}s#=.*#=${v}#;" > /tmp/tmp && cp /tmp/tmp javab.txt
+	    then
+		return 0
+	    else
+		return 1
+	    fi
+	else
+	    echo "${n}=${v}" >> javab.txt
+
+	    return 0
+	fi
+	return 0
+    else
+	return 1
+    fi
+}
+# (public)
+function test_self {
+    if a=$(2>/dev/null which javab) && b=${HOME}/bin/javab && [ "${a}" = "${b}" ]
+    then
+	return 0
+    else
+	return 1
+    fi
+}
+function test_env {
+
+    if [ -n "${JAVA_HOME}" ]&&[ -d "${JAVA_HOME}" ]&&[ -d "${JAVA_HOME}/jre" ]
+    then
+	return 0
+    else
+	return 1
+    fi
+}
+function test_layout {
+
+    if 1>/dev/null dir_src
+    then
+	return 0
+    else
+	return 1
+    fi
+}
+function read_conf {
+    n="${1}"
+    if [ -n "${n}" ]&&[ -f javab.txt ]&& test_env && rt=$(file_rt) && tools=$(file_tools)
+    then
+	if v=$(2>/dev/null egrep -e "^${n}=" javab.txt | sed -e 's/^.*=//; s/^://; s/:$//;' -e "s#%file_rt%#${rt}#g; s#%file_tools%#${tools}#g;") &&[ -n "${v}" ]
+	then
+	    echo ${v}
+
+	    return 0
+	else
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function file_rt {
+
+    if p="${JAVA_HOME}/jre/rt.jar" &&[ -f "${p}" ]
+    then
+	echo ${p}
+	return 0
+    else
+	return 1
+    fi
+}
+function file_tools {
+
+    if p="${JAVA_HOME}/lib/tools.jar" &&[ -f "${p}" ]
+    then
+	echo ${p}
+	return 0
+    else
+	return 1
+    fi
+}
+function dir_lib {
+
+    rc=1
+
+    if [ -d lib ]
+    then
+	echo lib
+
+	rc=0
+    fi
+
+    if d=$(read_conf 'lib_dir') &&[ -d "${d}" ]
+    then
+	echo ${d}
+	return 0
+    else
+	return ${rc}
+    fi
+}
+function dir_src {
+
+    if [ -d src ]
+    then
+	echo src
+	return 0
+
+    elif d=$(read_conf 'src_dir') &&[ -d "${d}" ]
+    then
+	echo ${d}
+
+	return 0
+
+    elif d=$(find . -type d -name java | tail -n 1 )&& [ -n "${d}" ]&& [ -n "$(find ${d} -type f -name '*.java')" ]
+    then
+	echo ${d}
+	return 0
+
+
+    else
+	return 1
+    fi
+}
+function dir_res {
+
+    if [ -d res ]
+    then
+	echo res
+	return 0
+
+    elif d=$(read_conf 'res_dir') &&[ -d "${d}" ]
+    then
+	echo ${d}
+
+	return 0
+
+    elif d=$(find . -type d -name res | tail -n 1 )&& [ -n "${d}" ]&& [ -n "$(find ${d} -type f -name '*.xml')" ]
+    then
+	echo ${d}
+	return 0
+
+
+    else
+	return 1
+    fi
+}
+function path_lib {
+    if test_env
+    then
+	if ld=$(dir_lib) && flist=$(find ${ld} -name '*.jar' ) &&[ -n "${flist}" ]
+	then
+	    echo ${flist} | tr '\n' ':' | tr ' ' ':' | sed 's/:$//'
+
+	    return 0
+	else
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function path_class {
+    if test_env
+    then
+	
+	if cp=$(read_conf 'classpath')
+	then
+	    echo ${cp}
+
+	    return 0
+	else
+	    extra=$(read_conf 'extra_classpath')
+
+	    if lp=$(path_lib)&& [ -n "${lp}" ]
+	    then
+		if [ -n "${extra}" ]
+		then
+		    echo "${lp}:${extra}"
+		else
+		    echo "${lp}"
+		fi
+		return 0
+
+	    elif [ -n "${extra}" ]
+	    then
+		echo "${extra}"
+		return 0
+	    else
+		return 0
+	    fi
+	fi
+    else
+	return 1
+    fi
+}
+function list_sources {
+    if test_env && test_layout 
+    then
+	if s=$(dir_src)&& find "${s}" -type f -name '*.java'
+	then
+	    return 0
+	else
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function init_conf {
+
+    if [ -f javab.txt ]
+    then
+	return 0
+
+    elif cat<<EOF>javab.txt
+# 
+# Configuration parameters recognized by 'javab'.
+# See https://github.com/syntelos/sh-javab
+#
+name=$(basename $(pwd))
+version=
+EOF
+    then
+	return 0
+    else
+	return 1
+    fi
+}
+function target {
+    if n=$(read_conf 'name') && v=$(read_conf 'version')
+    then
+	if [ -n "${name}" ]&&[ -n "${version}" ]
+	then
+	    target=${name}-${version}.jar
+	    echo $target
+	    return 0
+
+	elif [ -n "${name}" ]
+	then
+	    target=${name}.jar
+	    echo $target
+	    return 0
+
+	else
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function compile {
+    if test_env && cp=$(path_class)&& fli=$(list_sources)
+    then
+
+	if [ ! -d bin ]
+	then
+	    mkdir bin
+	fi
+
+	if [ -n "${cp}" ]
+	then
+	    cmd="javac -source 1.7 -target 1.7 -d obj -cp ${cp}"
+	else
+	    cmd="javac -source 1.7 -target 1.7 -d obj"
+	fi
+	1>&2 echo "${cmd}"
+
+	if ${cmd} ${fli}
+	then
+	    return 0
+	else
+	    1>&2 echo "$0 (compile) error from '${cmd}'."
+
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function package {
+    if test_env && test_layout &&[ -d bin ]
+    then
+	
+
+	cmd="cd bin; jar cf ../classes.jar *"
+	1>&2 echo "${cmd}"
+
+	if ${cmd}
+	then
+	    return 0
+	else
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function build {
+
+    if compile && package
+    then
+	return 0
+    else
+	return 1
+    fi
+}
+function clean {
+
+    if flist=$(2>/dev/null ls *.jar) &&[ -n "${flist}" ]
+    then
+	rm -f ${flist}
+    fi
+
+    if [ -d bin ]
+    then
+	rm -rf bin
+    fi
+
+    return 0
+}
+
+#
+#
+if [ -n "${1}" ]
+then
+    directive="${1}"
+    shift
+
+    case "${directive}" in
+	test-self)
+	    if test_self
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	test-env)
+	    if test_env
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	test-layout)
+	    if test_layout
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	read-conf)
+	    if read_conf "${1}"
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	file-rt)
+	    if file_rt
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	file-tools)
+	    if file_tools
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	dir-lib)
+	    if dir_lib
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	dir-src)
+	    if dir_src
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	dir-res)
+	    if dir_res
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	path-lib)
+	    if path_lib
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	path-class)
+	    if path_class
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	list-sources)
+	    if list_sources
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	init)
+	    if init_conf
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	target)
+	    if target_conf
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	compile)
+	    if compile
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	package)
+	    if package
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	build)
+	    if build
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	clean)
+	    if clean
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	*)
+	    usage
+	    ;;
+    esac
+else
+    usage
+fi

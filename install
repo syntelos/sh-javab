@@ -1,0 +1,21 @@
+#!/bin/bash
+
+if [ -f javab ]&&[ -x javab ]
+then
+    if [ -d ${HOME}/bin ]
+    then
+	# (copy) &
+	#          (javab test-self)
+	#
+	if cp -p javab ${HOME}/bin && 2>/dev/null 1>&2 javab test-self
+	then
+	    exit 0
+	else
+	    exit 1
+	fi
+    else
+	exit 1
+    fi
+else
+    exit 1
+fi
