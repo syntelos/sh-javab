@@ -384,9 +384,12 @@ function compile {
 function package {
     if test_env && test_layout &&[ -d bin ]&& jarf=$(target) &&[ -n "${jarf}" ]
     then
-	
-
-	cmd="jar cf ../${jarf} *"
+	if main=$(read_conf 'main-class') &&[ -n "${main}" ]
+	then
+	    cmd="jar cef ${main} ../${jarf} *"
+	else
+	    cmd="jar cf ../${jarf} *"
+	fi
 	1>&2 echo "${cmd}"
 
 	if cd bin && ${cmd}
