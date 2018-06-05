@@ -394,6 +394,9 @@ function package {
 
 	if cd bin && ${cmd}
 	then
+	    cd ~-
+	    2>/dev/null rm -rf bin
+
 	    return 0
 	else
 	    return 1
