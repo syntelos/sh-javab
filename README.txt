@@ -1,14 +1,14 @@
 
-Android build script for linux
+Java package build script following sh-android.
 
 
 Synopsis
 
-    android
+    javab
 
 Description
 
-    This script encapsulates the android build process.
+    This script encapsulates a package build process.
 
 Status
 
@@ -25,7 +25,7 @@ Documentation
 
     Invoking
 
-        2>&1 android -? | less
+        2>&1 javab -? | less
 
     will pipe the help text to the 'less' pager.
 
@@ -34,9 +34,7 @@ Installation
     Prerequisites
 
 	The home 'bin' directory (${HOME}/bin) must exist, and must be
-	in the PATH, and its position in the PATH must be superior to
-	the 'android-sdk/tools' directory (where google's deprecated
-	'android' script is located).
+	in the PATH.
 
     Synopsis
 
@@ -44,25 +42,28 @@ Installation
 
     Description
 
-	This will attempt to copy the "android" shell script to
+	This will attempt to copy the "javab" shell script to
 	'${HOME}/bin', and to validate the installation.
 
     Results
 
 	The installation script will fail (result code "1", not "0")
-	when '${HOME}/bin' is not found, or 'which android' is not
-	'${HOME}/bin/android'.  The installation will also fail when
+	when '${HOME}/bin' is not found, or 'which javab' is not
+	'${HOME}/bin/javab'.  The installation will also fail when
 	the 'which' program is not (properly) installed.
 
 Quick start
 
     In the root directory of a project, as (for example)
 
-        cd ~/src/some-android-application
+        cd ~/src/some-java-application
 
     Run
 
-	android debug-install; echo $?
+	javab init; echo $?
+
+	javab build; echo $?
+
 
     If it fails, the design intent is to remedy the situation by
     testing, probing, and configuration.
@@ -70,15 +71,9 @@ Quick start
 
 Caveats
 
-    This script (creates and) destroys application project (working
-    directory) [sub] directories 'obj' and 'bin'.
+    This script (creates and) destroys the application project
+    (working directory) [sub] directory 'bin'.
 
 Credits
 
-    Written with the recipe found in...
-
-    "How to make Android apps without IDE from command line"
-    https://medium.com/@authmane512/how-to-build-an-apk-from-command-line-without-ide-7260e1e22676
-
-    by Authmane Terki, https://medium.com/@authmane512
-                       https://github.com/authmane512
+    https://github.com/syntelos/sh-android
