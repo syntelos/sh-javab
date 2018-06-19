@@ -74,6 +74,6 @@ Caveats
     This script (creates and) destroys the application project
     (working directory) [sub] directory 'bin'.
 
-Credits
+References
 
     https://github.com/syntelos/sh-android
