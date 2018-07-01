@@ -384,18 +384,33 @@ function compile {
 function package {
     if test_env && test_layout &&[ -d bin ]&& jarf=$(target) &&[ -n "${jarf}" ]
     then
-	if main=$(read_conf 'main-class') &&[ -n "${main}" ]
+	tmpf=/tmp/javab.manifest.$$
+
+	if main=$(read_conf 'main-class')&&[ -n "${main}" ]
 	then
-	    cmd="jar cef ${main} ../${jarf} *"
-	else
-	    cmd="jar cf ../${jarf} *"
+	    cat<<EOF>>${tmpf}
+Main-Class: ${main}
+EOF
+        else
+	    touch ${tmpf}
 	fi
+
+	if cp=$(path_class)&&[ -n "${cp}" ]
+	then
+	    cat<<EOF>>${tmpf}
+Class-Path: $(echo ${cp} | sed 's%:% %')
+EOF
+        else
+	    touch ${tmpf}
+	fi
+
+	cmd="jar cmf ${tmpf} ../${jarf} *"
 	1>&2 echo "${cmd}"
 
 	if cd bin && ${cmd}
 	then
 	    cd ~-
-	    2>/dev/null rm -rf bin
+	    2>/dev/null rm -rf ${tmpf} bin
 
 	    return 0
 	else
