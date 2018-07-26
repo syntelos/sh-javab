@@ -202,24 +202,36 @@ function dir_lib {
 	return ${rc}
     fi
 }
+function dir_src_ln {
+
+    dir_src | tr '\n' ' '
+}
 function dir_src {
 
-    if [ -d src ]
+
+    if d=$(read_conf 'src_dir') &&[ -n "${d}" ]
+    then
+	cc=0
+
+	for n in ${d}
+	do
+	    cc=$(( ${cc} + 1 ))
+
+	    echo ${n}
+	done
+
+	if [ 0 -lt ${cc} ]
+	then
+	    return 0
+	else
+	    return 1
+	fi
+
+    elif [ -d src ]
     then
 	echo src
-	return 0
-
-    elif d=$(read_conf 'src_dir') &&[ -d "${d}" ]
-    then
-	echo ${d}
 
 	return 0
-
-    elif d=$(find . -type d -name java | tail -n 1 )&& [ -n "${d}" ]&& [ -n "$(find ${d} -type f -name '*.java')" ]
-    then
-	echo ${d}
-	return 0
-
 
     else
 	return 1
@@ -300,7 +312,7 @@ function path_class {
 function list_sources {
     if test_env && test_layout 
     then
-	if s=$(dir_src)&& find "${s}" -type f -name '*.java'
+	if s=$(dir_src_ln)&& find ${s} -type f -name '*.java'
 	then
 	    return 0
 	else
@@ -367,7 +379,7 @@ function compile {
 	else
 	    cmd="javac -source 1.7 -target 1.7 -d bin"
 	fi
-	1>&2 echo "${cmd} $(dir_src)//*.java"
+	1>&2 echo "${cmd} $(dir_src_ln)//*.java"
 
 	if ${cmd} ${fli}
 	then
