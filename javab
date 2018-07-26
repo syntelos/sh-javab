@@ -49,7 +49,7 @@ Configuration
     lib_dir=../lib
 
 
-  The following names are employed within the script.
+  The following configuration names are employed by the script.
 
     name                   Project name, see 'target'.
 
@@ -71,6 +71,9 @@ Configuration
 
     extra_classpath        A library path ':' to append to the contents 
                            of <lib>.
+
+    main-class             The fully qualified classname for a class 
+                           containing a public, static 'main' function.
 
 Caveats
 
