@@ -13,14 +13,20 @@ Directives
   test-self           Perform the installation test.
   test-env            Perform the environment test.
   test-layout         Perform the file layout test.
-  read-conf <n>       Read a named variable from 'javab.txt'.
 
-  file-rt              Print the location of 'rt.jar' bootclasspath.
-  file-tools           Print the location of 'tools.jar'.
+  read-conf <n>       Read a named variable from 'javab.txt'.  If 
+                      the configured value names an executable shell
+                      script in the working directory, evaluate the
+                      name as './\${name}'.
+
+  file-rt             Print the location of 'rt.jar' bootclasspath.
+  file-tools          Print the location of 'tools.jar'.
+  file-tgt            Print the location of the target jar file.
 
   dir-lib             Print one or more 'lib' directories, configured and './lib'.
   dir-src             Print the location of the 'src' directory.
   dir-res             Print the location of the 'res' directory.
+  dir-pkg             Print the location of the 'pkg' directory.
 
   path-lib            Print the classpath derived from 'dir-lib'.
   path-class          Print the classpath for 'javac'.
@@ -156,8 +162,12 @@ function read_conf {
     then
 	if v=$(2>/dev/null egrep -e "^${n}=" javab.txt | sed -e 's/^.*=//; s/^://; s/:$//;' -e "s#%file_rt%#${rt}#g; s#%file_tools%#${tools}#g;") &&[ -n "${v}" ]
 	then
-	    echo ${v}
-
+	    if [ -x "${v}" ]&& rv=$(2>/dev/null ./${v} ) && [ -n "${rv}" ]
+	    then
+		echo ${rv}
+	    else
+		echo ${v}
+	    fi
 	    return 0
 	else
 	    return 1
@@ -258,6 +268,23 @@ function dir_res {
 	echo ${d}
 	return 0
 
+
+    else
+	return 1
+    fi
+}
+function dir_pkg {
+
+    if [ -d pkg ]
+    then
+	echo pkg
+	return 0
+
+    elif d=$(read_conf 'pkg_dir') &&[ -d "${d}" ]
+    then
+	echo ${d}
+
+	return 0
 
     else
 	return 1
@@ -399,6 +426,28 @@ function compile {
 function package {
     if test_env && test_layout &&[ -d bin ]&& jarf=$(target) &&[ -n "${jarf}" ]
     then
+	if resd=$(dir_res)&&[ -d "${resd}" ]
+	then
+	    if cd "${resd}" && tar cfp /tmp/res $(find . -type f )
+	    then
+		cd ~-
+		if cd bin && tar xfp /tmp/res
+		then
+		    cd ~-
+		else
+		    cat<<EOF>&2
+$0 error unpacking resources.
+EOF
+		    exit 1
+		fi
+	    else
+		cat<<EOF>&2
+$0 error packing resources.
+EOF
+		exit 1
+	    fi
+	fi
+
 	tmpf=/tmp/javab.manifest.$$
 
 	if main=$(read_conf 'main-class')&&[ -n "${main}" ]
@@ -418,6 +467,31 @@ EOF
         else
 	    touch ${tmpf}
 	fi
+
+	if pd=$(dir_pkg)&&[ -n "${pd}" ]
+	then
+            #
+            # Package file specification (ordered):
+            #   Comment := '^#.*$'
+            #   Required := 'Name: ([a-z]+/)+'
+            #   Optional := 'Sealed: true'
+            #   Optional := 'Specification-Title: "<lit-string>"'
+            #   Optional := 'Specification-Version: "<v-dot-string>"'
+            #   Optional := 'Specification-Vendor: "<lit-string>"'
+            #   Nominal := 'Implementation-Title: "<lit-string>"'
+            #   Nominal := 'Implementation-Version: "<v-dot-string>"'
+            #   Nominal := 'Implementation-Vendor: "<lit-string>"'
+            #
+            for pkg_fil in $(find ${pd} -type f -name '*.txt')
+            do
+                echo >>${tmpf}
+	        egrep -v '^#' ${pkg_fil} >>${tmpf}
+            done
+        else
+	    touch ${tmpf}
+	fi
+
+        #cat -n ${tmpf}
 
 	cmd="jar cmf ${tmpf} ../${jarf} *"
 	1>&2 echo "${cmd}"
@@ -515,6 +589,14 @@ then
 		exit 1
 	    fi
 	    ;;
+	file-tgt)
+	    if target
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
 	dir-lib)
 	    if dir_lib
 	    then
@@ -533,6 +615,14 @@ then
 	    ;;
 	dir-res)
 	    if dir_res
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	dir-pkg)
+	    if dir_pkg
 	    then
 		exit 0
 	    else
