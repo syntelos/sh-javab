@@ -32,12 +32,14 @@ Directives
   path-class          Print the classpath for 'javac'.
 
   list-sources        Print listing of JPL files found under 'src'.
+  gen-keystore        Add a developer keystore to a configuration.
 
-  init                Write configuration file.
+  init                Write configuration file, generate a keystore.
   target              Print jar file name from configured name and version.
   compile             Compile JPL files from 'src' to 'bin'.
   package             Package object binaries from 'bin' to jar.
-  build               Perform compile and package.
+  build               Perform compile and package without signing.
+  sign                Employ the configured keystore to sign the JAR.
   clean               Drop 'jar' file and 'bin' directory.
 
 Configuration
@@ -372,6 +374,53 @@ EOF
 	return 1
     fi
 }
+function gen_keystore {
+
+    if ks=$(read_conf 'keystore')&& ka=$(read_conf 'keystore_alias')&& [ -f "${ks}" ]
+    then
+	return 1
+
+    elif [ -n "${ks}" ]&&[ -n "${ka}" ]
+    then
+        
+	cmd="keytool -alias ${ka} -genkeypair -validity 365 -keystore ${ks} -keyalg RSA -keysize 2048 -storetype pkcs12"
+	1>&2 echo "${cmd}"
+
+	if ${cmd}
+	then
+	    return 0
+	else
+	    1>&2 echo "$0 error (gen_keystore) from '${cmd}'."
+	    return 1
+	fi
+
+    else
+	ks=".keystore.pkcs12"
+        ka="devkey"
+
+	if write_conf keystore ${ks} && write_conf keystore_alias ${ka}
+	then
+
+	    if [ ! -f ${ks} ]
+	    then
+		cmd="keytool -alias ${ka} -genkeypair -validity 365 -keystore ${ks} -keyalg RSA -keysize 2048 -storetype pkcs12"
+		1>&2 echo "${cmd}"
+
+		if ${cmd}
+		then
+		    return 0
+		else
+		    1>&2 echo "$0 error (gen_keystore) from '${cmd}'."
+		    return 1
+		fi
+	    else
+		return 1
+	    fi
+	else
+	    return 1
+	fi
+    fi
+}
 function target {
     if n=$(read_conf 'name') && v=$(read_conf 'version')
     then
@@ -462,7 +511,7 @@ EOF
 	if cp=$(path_class)&&[ -n "${cp}" ]
 	then
 	    cat<<EOF>>${tmpf}
-Class-Path: $(echo ${cp} | sed 's%:% %')
+Class-Path: $(echo ${cp} | sed 's%:% %g;')
 EOF
         else
 	    touch ${tmpf}
@@ -503,6 +552,25 @@ EOF
 
 	    return 0
 	else
+	    return 1
+	fi
+    else
+	return 1
+    fi
+}
+function sign {
+    
+    if test_env && ks=$(read_conf 'keystore') && ka=$(read_conf 'keystore_alias') && tgtf=$(target) &&[ -f ${tgtf} ]
+    then
+	cmd="jarsigner -keystore ${ks} ${tgtf} ${ka}"
+	1>&2 echo "${cmd}"
+
+	if ${cmd}
+	then
+	    return 0
+	else
+	    1>&2 echo "$0 (sign) error from '${cmd}'."
+
 	    return 1
 	fi
     else
@@ -653,8 +721,16 @@ then
 		exit 1
 	    fi
 	    ;;
+	gen-keystore)
+	    if gen_keystore
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
 	init)
-	    if init_conf
+	    if gen_keystore
 	    then
 		exit 0
 	    else
@@ -679,6 +755,14 @@ then
 	    ;;
 	package)
 	    if package
+	    then
+		exit 0
+	    else
+		exit 1
+	    fi
+	    ;;
+	sign)
+	    if sign
 	    then
 		exit 0
 	    else
